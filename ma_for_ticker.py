@@ -10,13 +10,13 @@ import tinvest as ti
 client = ti.SyncClient(os.getenv("TINVEST_TOKEN", ''))
 interval = ti.CandleResolution.day
 ma_period = [10, 60]
-eps = 0.03
+eps = 0.01
 
 
 def main() -> None:
-    period = 200
+    period = 2000
     ticker = "BABA"
-    tester(get_figi_by_ticker(ticker),period)
+    print(tester(get_figi_by_ticker(ticker),period))
     get_graph_by_ticker(ticker,period)
 
 
@@ -116,9 +116,7 @@ def tester(figi: str, period: int) -> int:
                 flag = 1
                 sequence.append(buy_points[b])
             b += 1
-    print(len(sequence))
     prices = [[datetime.date(val[6]),(val[0]+val[5])/2] for val in df.values]
-    print(prices)
     result = 1
     i = 0
     while i<(len(sequence)/2):
@@ -131,7 +129,7 @@ def tester(figi: str, period: int) -> int:
                 sell_price=price[1]
         result = result * (1+(sell_price-buy_price)/buy_price)
         i+=1
-    print (result)
+    print('Количество сделок = ', i)
     return result
 
 
