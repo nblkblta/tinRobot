@@ -16,14 +16,14 @@ eps = 0.05
 class Strategy(object):
 
     @abstractmethod
-    def get_buy_points(figi: str, period):
+    def get_buy_points(figi: str, period: int) -> List:
         pass
 
-    def get_sell_points(figi: str, period):
+    def get_sell_points(figi: str, period: int) -> List:
         pass
 
 
-class ma_strategy(Strategy):
+class MovingAverageStrategy(Strategy):
 
     def get_buy_points(figi: str, period) -> List:
         df = get_figi_data(figi, period)
@@ -46,14 +46,14 @@ class ma_strategy(Strategy):
         return result
 
 
-class cross_strategy(Strategy):
+class CrossStrategy(Strategy):
 
     def get_buy_points(figi: str, period) -> List:
         df = get_figi_data(figi, period)
         data = [df["c"].rolling(window=ma_period[0]).mean(), df["c"].rolling(window=ma_period[1]).mean(), df["time"]]
         result = []
         for i in range(len(data[0])):
-            if ((data[0][i] - data[1][i]) > 0 and (data[0][i - 1] - data[1][i - 1]) < 0):
+            if (data[0][i] - data[1][i]) > 0 > (data[0][i - 1] - data[1][i - 1]):
                 result.append(datetime.date(data[2][i]))
         return result
 
@@ -62,7 +62,7 @@ class cross_strategy(Strategy):
         data = [df["c"].rolling(window=ma_period[0]).mean(), df["c"].rolling(window=ma_period[1]).mean(), df["time"]]
         result = []
         for i in range(len(data[0])):
-            if ((data[0][i] - data[1][i]) < 0 and (data[0][i - 1] - data[1][i - 1]) > 0):
+            if (data[0][i] - data[1][i]) < 0 < (data[0][i - 1] - data[1][i - 1]):
                 result.append(datetime.date(data[2][i]))
         return result
 
@@ -72,10 +72,12 @@ class Tester(object):
     def test(strategy: Strategy) -> int:
         pass
 
+
 class Simple_Tester(Tester):
-    tickers = ['AAPL', 'BABA', 'TSLA','MOMO', 'SBER' ]
+    tickers = ['AAPL', 'BABA', 'TSLA', 'MOMO', 'SBER']
     period = 3000
-    def get_sequence(sell_points: List, buy_points: List)->List:
+
+    def get_sequence(sell_points: List, buy_points: List) -> List:
         sequence = []
         s, b = 0, 0
         sequence.append(buy_points[b])
@@ -93,18 +95,18 @@ class Simple_Tester(Tester):
                 b += 1
         return sequence
 
-    def test(strategy: Strategy) -> int:
+    def test(strategy: Strategy) -> float:
         period = Simple_Tester.period
         result = 0
         tickers = Simple_Tester.tickers
         for ticker in tickers:
             figi = get_figi_by_ticker(ticker)
             sell_price, buy_price = 0, 0
-            df = get_figi_data(figi,period)
+            df = get_figi_data(figi, period)
             sell_points, buy_points = strategy.get_sell_points(figi, period), strategy.get_buy_points(figi, period)
             if (len(buy_points) == 0) or (len(sell_points) == 0):
                 return 0
-            sequence = Simple_Tester.get_sequence(sell_points,buy_points)
+            sequence = Simple_Tester.get_sequence(sell_points, buy_points)
             prices = [[datetime.date(val[6]), (val[0] + val[5]) / 2] for val in df.values]
             est = 1
             i = 0
@@ -121,18 +123,19 @@ class Simple_Tester(Tester):
                 est = est * (1 + (sell_price - buy_price) / buy_price)
                 i += 1
             print('Количество сделок = ', i)
-            result+=est
-        result = result/len(tickers)
+            result += est
+        result = result / len(tickers)
         return result
+
 
 def main() -> None:
     period = 500
     ticker = "BABA"
     figi = get_figi_by_ticker(ticker)
-    print(Simple_Tester.test( cross_strategy))
+    print(Simple_Tester.test(CrossStrategy))
     # get_graph_by_ticker(ticker, period)
-    print(cross_strategy.get_buy_points(figi, period))
-    print(cross_strategy.get_sell_points(figi, period))
+    print(CrossStrategy.get_buy_points(figi, period))
+    print(CrossStrategy.get_sell_points(figi, period))
 
 
 def get_figure(figis: List[Tuple[str, str]], period: int) -> go.Figure:
@@ -151,7 +154,8 @@ def get_graph_by_ticker(ticker: str, period: int):
     fig = get_figure(get, period)
     ma = get_figi_data(get[0], period)
     for per in ma_period:
-        # fig.add_scatter(name="EMoving average " + str(per), y=ma["c"].ewm(span=per, adjust=False).mean(), x=ma["time"])
+        # fig.add_scatter(name="EMoving average " + str(per), y=ma["c"].ewm(span=per, adjust=False).mean(),
+        # x=ma["time"])
         fig.add_scatter(name="Moving average " + str(per), y=ma["c"].rolling(window=per).mean(), x=ma["time"])
     fig.show()
 
@@ -186,9 +190,6 @@ def get_figi_data(figi: str, period: int) -> pd.DataFrame:
         for candle in new.candles:
             payload.candles.append(candle)
     return pd.DataFrame(c.dict() for c in payload.candles)
-
-
-
 
 
 if __name__ == '__main__':
