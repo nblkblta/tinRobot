@@ -73,9 +73,9 @@ class Tester(object):
         pass
 
 
-class Simple_Tester(Tester):
+class SimpleTester(Tester):
     tickers = ['AAPL', 'BABA', 'TSLA', 'MOMO', 'SBER']
-    period = 3000
+    period = 3560
 
     def get_sequence(sell_points: List, buy_points: List) -> List:
         sequence = []
@@ -96,9 +96,9 @@ class Simple_Tester(Tester):
         return sequence
 
     def test(strategy: Strategy) -> float:
-        period = Simple_Tester.period
+        period = SimpleTester.period
         result = 0
-        tickers = Simple_Tester.tickers
+        tickers = SimpleTester.tickers
         for ticker in tickers:
             figi = get_figi_by_ticker(ticker)
             sell_price, buy_price = 0, 0
@@ -106,11 +106,10 @@ class Simple_Tester(Tester):
             sell_points, buy_points = strategy.get_sell_points(figi, period), strategy.get_buy_points(figi, period)
             if (len(buy_points) == 0) or (len(sell_points) == 0):
                 return 0
-            sequence = Simple_Tester.get_sequence(sell_points, buy_points)
+            sequence = SimpleTester.get_sequence(sell_points, buy_points)
             prices = [[datetime.date(val[6]), (val[0] + val[5]) / 2] for val in df.values]
             est = 1
             i = 0
-            print(sequence)
             while i < (len(sequence) / 2):
                 buy_date = sequence[i]
                 sell_date = sequence[i + 1]
@@ -119,23 +118,17 @@ class Simple_Tester(Tester):
                         buy_price = price[1]
                     if price[0] == sell_date:
                         sell_price = price[1]
-                print(buy_price, sell_price)
                 est = est * (1 + (sell_price - buy_price) / buy_price)
                 i += 1
-            print('Количество сделок = ', i)
+            print('Ticker = ', ticker, ' Количество сделок = ', i, ' Оценка = ', est)
             result += est
         result = result / len(tickers)
+        print ('Средняя оценок = ', result)
         return result
 
 
 def main() -> None:
-    period = 500
-    ticker = "BABA"
-    figi = get_figi_by_ticker(ticker)
-    print(Simple_Tester.test(CrossStrategy))
-    # get_graph_by_ticker(ticker, period)
-    print(CrossStrategy.get_buy_points(figi, period))
-    print(CrossStrategy.get_sell_points(figi, period))
+    print(SimpleTester.test(CrossStrategy))
 
 
 def get_figure(figis: List[Tuple[str, str]], period: int) -> go.Figure:
