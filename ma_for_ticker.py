@@ -9,14 +9,14 @@ import tinvest as ti
 
 client = ti.SyncClient(os.getenv("TINVEST_TOKEN", ''))
 interval = ti.CandleResolution.day
-ma_period = [10, 60, 200]
+ma_period = [10, 60]
 eps = 0.03
 
 
 def main() -> None:
-    period = 5000
+    period = 200
     ticker = "BABA"
-    tester(get_figi_by_ticker(ticker))
+    tester(get_figi_by_ticker(ticker),period)
     get_graph_by_ticker(ticker,period)
 
 
@@ -36,8 +36,7 @@ def get_graph_by_ticker(ticker: str, period: int):
     fig = get_figure(get,period)
     ma = get_figi_data(get[0],period)
     for per in ma_period:
-        fig.add_scatter(name="EMoving average " + str(per), y=ma["c"].ewm(span=per, adjust=False).mean(), x=ma["time"])
-    for per in ma_period:
+        #fig.add_scatter(name="EMoving average " + str(per), y=ma["c"].ewm(span=per, adjust=False).mean(), x=ma["time"])
         fig.add_scatter(name="Moving average " + str(per), y=ma["c"].rolling(window=per).mean(), x=ma["time"])
     fig.show()
 
@@ -96,29 +95,44 @@ def get_sell_points(figi: str, period: int) -> List:
     return result
 
 
-def tester(figi: str) -> int:
-    period = 5000
+def tester(figi: str, period: int) -> int:
     df = get_figi_data(figi,period)
     sell_points = get_sell_points(figi,period)
     buy_points = get_buy_points(figi,period)
-    result = []
-    s = 0
-    b = 0
-    result.append(buy_points[b])
+    if(len(buy_points) == 0)or(len(sell_points) == 0):
+        return 0
+    sequence = []
+    s, b = 0, 0
+    sequence.append(buy_points[b])
     flag = 1
     while (s < len(sell_points) - 1) and (b < len(buy_points) - 1):
         if flag:
-            if sell_points[s] > result[len(result) - 1]:
+            if sell_points[s] > sequence[len(sequence) - 1]:
                 flag = 0
-                result.append(sell_points[s])
+                sequence.append(sell_points[s])
             s += 1
         else:
-            if buy_points[b] > result[len(result) - 1]:
+            if buy_points[b] > sequence[len(sequence) - 1]:
                 flag = 1
-                result.append(buy_points[b])
+                sequence.append(buy_points[b])
             b += 1
-
-    return 0
+    print(len(sequence))
+    prices = [[datetime.date(val[6]),(val[0]+val[5])/2] for val in df.values]
+    print(prices)
+    result = 1
+    i = 0
+    while i<(len(sequence)/2):
+        buy_date = sequence[i]
+        sell_date = sequence[i+1]
+        for price in prices:
+            if price[0]==buy_date:
+                buy_price=price[1]
+            if price[0]==sell_date:
+                sell_price=price[1]
+        result = result * (1+(sell_price-buy_price)/buy_price)
+        i+=1
+    print (result)
+    return result
 
 
 if __name__ == '__main__':
