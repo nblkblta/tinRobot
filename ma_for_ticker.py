@@ -67,14 +67,72 @@ class cross_strategy(Strategy):
         return result
 
 
+class Tester(object):
+    @abstractmethod
+    def test(strategy: Strategy) -> int:
+        pass
+
+class Simple_Tester(Tester):
+    tickers = ['AAPL', 'BABA', 'TSLA','MOMO', 'SBER' ]
+    period = 3000
+    def get_sequence(sell_points: List, buy_points: List)->List:
+        sequence = []
+        s, b = 0, 0
+        sequence.append(buy_points[b])
+        flag = 1
+        while (s <= len(sell_points) - 1) and (b <= len(buy_points) - 1):
+            if flag:
+                if sell_points[s] > sequence[len(sequence) - 1]:
+                    flag = 0
+                    sequence.append(sell_points[s])
+                s += 1
+            else:
+                if buy_points[b] > sequence[len(sequence) - 1]:
+                    flag = 1
+                    sequence.append(buy_points[b])
+                b += 1
+        return sequence
+
+    def test(strategy: Strategy) -> int:
+        period = Simple_Tester.period
+        result = 0
+        tickers = Simple_Tester.tickers
+        for ticker in tickers:
+            figi = get_figi_by_ticker(ticker)
+            sell_price, buy_price = 0, 0
+            df = get_figi_data(figi,period)
+            sell_points, buy_points = strategy.get_sell_points(figi, period), strategy.get_buy_points(figi, period)
+            if (len(buy_points) == 0) or (len(sell_points) == 0):
+                return 0
+            sequence = Simple_Tester.get_sequence(sell_points,buy_points)
+            prices = [[datetime.date(val[6]), (val[0] + val[5]) / 2] for val in df.values]
+            est = 1
+            i = 0
+            print(sequence)
+            while i < (len(sequence) / 2):
+                buy_date = sequence[i]
+                sell_date = sequence[i + 1]
+                for price in prices:
+                    if price[0] == buy_date:
+                        buy_price = price[1]
+                    if price[0] == sell_date:
+                        sell_price = price[1]
+                print(buy_price, sell_price)
+                est = est * (1 + (sell_price - buy_price) / buy_price)
+                i += 1
+            print('Количество сделок = ', i)
+            result+=est
+        result = result/len(tickers)
+        return result
+
 def main() -> None:
     period = 500
     ticker = "BABA"
     figi = get_figi_by_ticker(ticker)
-    print(tester(figi, period, cross_strategy))
-    #get_graph_by_ticker(ticker, period)
-    print (cross_strategy.get_buy_points(figi,period))
-    print(cross_strategy.get_sell_points(figi,period))
+    print(Simple_Tester.test( cross_strategy))
+    # get_graph_by_ticker(ticker, period)
+    print(cross_strategy.get_buy_points(figi, period))
+    print(cross_strategy.get_sell_points(figi, period))
 
 
 def get_figure(figis: List[Tuple[str, str]], period: int) -> go.Figure:
@@ -130,44 +188,7 @@ def get_figi_data(figi: str, period: int) -> pd.DataFrame:
     return pd.DataFrame(c.dict() for c in payload.candles)
 
 
-def tester(figi: str, period: int, strategy: Strategy) -> int:
-    sell_price, buy_price = 0, 0
-    df = get_figi_data(figi, period)
-    sell_points, buy_points = strategy.get_sell_points(figi, period), strategy.get_buy_points(figi, period)
-    if (len(buy_points) == 0) or (len(sell_points) == 0):
-        return 0
-    sequence = []
-    s, b = 0, 0
-    sequence.append(buy_points[b])
-    flag = 1
-    while (s <= len(sell_points) - 1) and (b <= len(buy_points) - 1):
-        if flag:
-            if sell_points[s] > sequence[len(sequence) - 1]:
-                flag = 0
-                sequence.append(sell_points[s])
-            s += 1
-        else:
-            if buy_points[b] > sequence[len(sequence) - 1]:
-                flag = 1
-                sequence.append(buy_points[b])
-            b += 1
-    prices = [[datetime.date(val[6]), (val[0] + val[5]) / 2] for val in df.values]
-    result = 1
-    i = 0
-    print(sequence)
-    while i < (len(sequence) / 2):
-        buy_date = sequence[i]
-        sell_date = sequence[i + 1]
-        for price in prices:
-            if price[0] == buy_date:
-                buy_price = price[1]
-            if price[0] == sell_date:
-                sell_price = price[1]
-        print(buy_price, sell_price)
-        result = result * (1 + (sell_price - buy_price) / buy_price)
-        i += 1
-    print('Количество сделок = ', i)
-    return result
+
 
 
 if __name__ == '__main__':
