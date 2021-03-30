@@ -9,24 +9,24 @@ import tinvest as ti
 
 client = ti.SyncClient(os.getenv("TINVEST_TOKEN", ''))
 interval = ti.CandleResolution.day
-ma_period = [5, 60]
+ma_period = [2, 60]
 eps = 0.05
 
 
 class Strategy(object):
 
     @abstractmethod
-    def get_buy_points(figi: str, period: int) -> List:
+    def get_buy_points(df: pd.DataFrame) -> List:
         pass
 
-    def get_sell_points(figi: str, period: int) -> List:
+    @abstractmethod
+    def get_sell_points(df: pd.DataFrame) -> List:
         pass
 
 
 class MovingAverageStrategy(Strategy):
 
-    def get_buy_points(figi: str, period) -> List:
-        df = get_figi_data(figi, period)
+    def get_buy_points(df: pd.DataFrame) -> List:
         data = [df["c"].rolling(window=ma_period[0]).mean(), df["c"].rolling(window=ma_period[1]).mean(), df["time"]]
         result = []
         for i in range(len(data[0])):
@@ -35,8 +35,7 @@ class MovingAverageStrategy(Strategy):
                     result.append(datetime.date(data[2][i]))
         return result
 
-    def get_sell_points(figi: str, period: int) -> List:
-        df = get_figi_data(figi, period)
+    def get_sell_points(df: pd.DataFrame) -> List:
         data = [df["c"].rolling(window=ma_period[0]).mean(), df["c"].rolling(window=ma_period[1]).mean(), df["time"]]
         result = []
         for i in range(len(data[0])):
@@ -48,8 +47,7 @@ class MovingAverageStrategy(Strategy):
 
 class CrossStrategy(Strategy):
 
-    def get_buy_points(figi: str, period) -> List:
-        df = get_figi_data(figi, period)
+    def get_buy_points(df: pd.DataFrame) -> List:
         data = [df["c"].rolling(window=ma_period[0]).mean(), df["c"].rolling(window=ma_period[1]).mean(), df["time"]]
         result = []
         for i in range(len(data[0])):
@@ -57,8 +55,7 @@ class CrossStrategy(Strategy):
                 result.append(datetime.date(data[2][i]))
         return result
 
-    def get_sell_points(figi: str, period: int) -> List:
-        df = get_figi_data(figi, period)
+    def get_sell_points(df: pd.DataFrame) -> List:
         data = [df["c"].rolling(window=ma_period[0]).mean(), df["c"].rolling(window=ma_period[1]).mean(), df["time"]]
         result = []
         for i in range(len(data[0])):
@@ -75,7 +72,7 @@ class Tester(object):
 
 class SimpleTester(Tester):
     tickers = ['AAPL', 'BABA', 'TSLA', 'MOMO', 'SBER']
-    period = 3560
+    period = 1050
 
     def get_sequence(sell_points: List, buy_points: List) -> List:
         sequence = []
@@ -100,10 +97,9 @@ class SimpleTester(Tester):
         result = 0
         tickers = SimpleTester.tickers
         for ticker in tickers:
-            figi = get_figi_by_ticker(ticker)
             sell_price, buy_price = 0, 0
-            df = get_figi_data(figi, period)
-            sell_points, buy_points = strategy.get_sell_points(figi, period), strategy.get_buy_points(figi, period)
+            df = get_figi_data(get_figi_by_ticker(ticker), period)
+            sell_points, buy_points = strategy.get_sell_points(df), strategy.get_buy_points(df)
             if (len(buy_points) == 0) or (len(sell_points) == 0):
                 return 0
             sequence = SimpleTester.get_sequence(sell_points, buy_points)
@@ -123,12 +119,8 @@ class SimpleTester(Tester):
             print('Ticker = ', ticker, ' Количество сделок = ', i, ' Оценка = ', est)
             result += est
         result = result / len(tickers)
-        print ('Средняя оценок = ', result)
+        print('Средняя оценок = ', result)
         return result
-
-
-def main() -> None:
-    print(SimpleTester.test(CrossStrategy))
 
 
 def get_figure(figis: List[Tuple[str, str]], period: int) -> go.Figure:
@@ -185,5 +177,8 @@ def get_figi_data(figi: str, period: int) -> pd.DataFrame:
     return pd.DataFrame(c.dict() for c in payload.candles)
 
 
-if __name__ == '__main__':
-    main()
+def main() -> None:
+    print(SimpleTester.test(CrossStrategy))
+
+
+main()
