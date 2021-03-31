@@ -9,37 +9,39 @@ import tinvest as ti
 
 client = ti.SyncClient(os.getenv("TINVEST_TOKEN", ''))
 interval = ti.CandleResolution.day
-ma_period = [2, 60]
-eps = 0.05
+ma_period = [5, 50]
 
 
 class Strategy(object):
 
     @abstractmethod
-    def get_buy_points(df: pd.DataFrame) -> List:
+    def get_buy_points(self: str, df: pd.DataFrame) -> List:
         pass
 
     @abstractmethod
-    def get_sell_points(df: pd.DataFrame) -> List:
+    def get_sell_points(self: str, df: pd.DataFrame) -> List:
         pass
 
 
 class MovingAverageStrategy(Strategy):
+    ma_period:List
+    ma_periods = ma_period
+    eps = 0.05
 
-    def get_buy_points(df: pd.DataFrame) -> List:
-        data = [df["c"].rolling(window=ma_period[0]).mean(), df["c"].rolling(window=ma_period[1]).mean(), df["time"]]
+    def get_buy_points(self, df: pd.DataFrame) -> List:
+        data = [df["c"].rolling(window=self.ma_periods[0]).mean(), df["c"].rolling(window=self.ma_periods[1]).mean(), df["time"]]
         result = []
         for i in range(len(data[0])):
-            if -eps < ((data[0][i] - data[1][i]) / data[1][i]) < eps:
+            if -self.eps < ((data[0][i] - data[1][i]) / data[1][i]) < self.eps:
                 if data[0][i - 1] < data[0][i]:
                     result.append(datetime.date(data[2][i]))
         return result
 
-    def get_sell_points(df: pd.DataFrame) -> List:
-        data = [df["c"].rolling(window=ma_period[0]).mean(), df["c"].rolling(window=ma_period[1]).mean(), df["time"]]
+    def get_sell_points(self, df: pd.DataFrame) -> List:
+        data = [df["c"].rolling(window=self.ma_periods[0]).mean(), df["c"].rolling(window=self.ma_periods[1]).mean(), df["time"]]
         result = []
         for i in range(len(data[0])):
-            if -eps < ((data[1][i] - data[0][i]) / data[1][i]) < eps:
+            if -self.eps < ((data[1][i] - data[0][i]) / data[1][i]) < self.eps:
                 if data[0][i - 1] > data[0][i]:
                     result.append(datetime.date(data[2][i]))
         return result
@@ -47,16 +49,18 @@ class MovingAverageStrategy(Strategy):
 
 class CrossStrategy(Strategy):
 
-    def get_buy_points(df: pd.DataFrame) -> List:
-        data = [df["c"].rolling(window=ma_period[0]).mean(), df["c"].rolling(window=ma_period[1]).mean(), df["time"]]
+    ma_periods = ma_period
+
+    def get_buy_points(self, df: pd.DataFrame) -> List:
+        data = [df["c"].rolling(window=self.ma_periods[0]).mean(), df["c"].rolling(window=self.ma_periods[1]).mean(), df["time"]]
         result = []
         for i in range(len(data[0])):
             if (data[0][i] - data[1][i]) > 0 > (data[0][i - 1] - data[1][i - 1]):
                 result.append(datetime.date(data[2][i]))
         return result
 
-    def get_sell_points(df: pd.DataFrame) -> List:
-        data = [df["c"].rolling(window=ma_period[0]).mean(), df["c"].rolling(window=ma_period[1]).mean(), df["time"]]
+    def get_sell_points(self, df: pd.DataFrame) -> List:
+        data = [df["c"].rolling(window=self.ma_periods[0]).mean(), df["c"].rolling(window=self.ma_periods[1]).mean(), df["time"]]
         result = []
         for i in range(len(data[0])):
             if (data[0][i] - data[1][i]) < 0 < (data[0][i - 1] - data[1][i - 1]):
@@ -71,11 +75,19 @@ class Tester(object):
 
 
 class SimpleTester(Tester):
-    tickers = ['AAPL', 'BABA', 'TSLA', 'MOMO', 'SBER']
-    period = 1050
+    tickers: List[str]
+    period: int
+    data: List
 
-    def get_sequence(sell_points: List, buy_points: List) -> List:
+    def get_data(self):
+        self.data = []
+        for ticker in self.tickers:
+            self.data.append([ticker,get_figi_data(get_figi_by_ticker(ticker), self.period)])
+
+    def get_sequence(self, sell_points: List, buy_points: List) -> List:
         sequence = []
+        if (len(buy_points) == 0) or (len(sell_points) == 0):
+            return sequence
         s, b = 0, 0
         sequence.append(buy_points[b])
         flag = 1
@@ -90,19 +102,27 @@ class SimpleTester(Tester):
                     flag = 1
                     sequence.append(buy_points[b])
                 b += 1
+        if flag:
+            sequence.pop()
         return sequence
 
-    def test(strategy: Strategy) -> float:
-        period = SimpleTester.period
+    def get_df_from_data(self, ticker: str)-> pd.DataFrame:
+        for data in self.data:
+            if ticker==data[0]:
+                return data[1]
+
+
+    def test(self, strategy: Strategy) -> float:
+        period = self.period
         result = 0
-        tickers = SimpleTester.tickers
+        inf = 1.06 ** (period / 365)
+        sp500 = 1.12 ** (period / 365)
+        tickers = self.tickers
         for ticker in tickers:
             sell_price, buy_price = 0, 0
-            df = get_figi_data(get_figi_by_ticker(ticker), period)
-            sell_points, buy_points = strategy.get_sell_points(df), strategy.get_buy_points(df)
-            if (len(buy_points) == 0) or (len(sell_points) == 0):
-                return 0
-            sequence = SimpleTester.get_sequence(sell_points, buy_points)
+            df = self.get_df_from_data(self,ticker)
+            sell_points, buy_points = strategy.get_sell_points(strategy,df), strategy.get_buy_points(strategy,df)
+            sequence = self.get_sequence(self, sell_points, buy_points)
             prices = [[datetime.date(val[6]), (val[0] + val[5]) / 2] for val in df.values]
             est = 1
             i = 0
@@ -116,11 +136,45 @@ class SimpleTester(Tester):
                         sell_price = price[1]
                 est = est * (1 + (sell_price - buy_price) / buy_price)
                 i += 1
-            print('Ticker = ', ticker, ' Количество сделок = ', i, ' Оценка = ', est)
+            # print('Ticker = ', ticker, ' Количество сделок = ', i, ' Оценка = ', est)
             result += est
         result = result / len(tickers)
         print('Средняя оценок = ', result)
+        # print('Ожидаемая инфляция = ', inf)
+        # print('Ожидаемый рост биржи = ', sp500)
         return result
+
+
+class Learner(object):
+
+    @abstractmethod
+    def learn(self: str):
+        pass
+
+
+class CrossStrategyLearner(Learner):
+
+    tester: Tester
+
+    def learn(self)->List:
+        estimations =[]
+        best_ma = [1,2]
+        best_est = 1
+        i = 1
+        while i < 300:
+            j = i+5
+            while j < 300:
+                strategy = CrossStrategy
+                strategy.ma_periods = [i,j]
+                res = self.tester.test(self.tester, strategy)
+                if res > best_est:
+                    best_ma = [i, j]
+                    best_est = res
+                estimations.append([strategy.ma_periods, res])
+                j += 5
+            i += 5
+        print(best_ma)
+        return estimations
 
 
 def get_figure(figis: List[Tuple[str, str]], period: int) -> go.Figure:
@@ -178,7 +232,14 @@ def get_figi_data(figi: str, period: int) -> pd.DataFrame:
 
 
 def main() -> None:
-    print(SimpleTester.test(CrossStrategy))
+    tickers = ['AAPL', 'BABA', 'TSLA', 'MOMO', 'SBER']
+    period = 2000
+    tester = SimpleTester
+    tester.tickers,tester.period = tickers, period
+    tester.get_data(tester)
+    learner = CrossStrategyLearner
+    CrossStrategyLearner.tester = tester
+    print(learner.learn(self=learner))
 
 
 main()
