@@ -7,15 +7,20 @@ import ma_for_ticker
 
 
 class Tester(object):
+    tickers: List[str]
+    period: int
+    data: List
+
+    def __init__(self, tickers: List, period: int):
+        self.tickers = tickers
+        self.period = period
+
     @abstractmethod
     def test(self, strategy: myStrategy.Strategy) -> int:
         pass
 
 
 class SimpleTester(Tester):
-    tickers: List[str]
-    period: int
-    data: List
 
     def get_data(self):
         self.data = []
@@ -33,7 +38,7 @@ class SimpleTester(Tester):
         tickers = self.tickers
         for ticker in tickers:
             sell_price, buy_price = 0, 0
-            df = self.get_df_from_data(self, ticker)
+            df = self.get_df_from_data(ticker)
             sequence = strategy.get_sequence(strategy, df)
             prices = [[datetime.date(val[6]), (val[0] + val[5]) / 2] for val in df.values]
             est = 1

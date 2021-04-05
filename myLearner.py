@@ -6,9 +6,13 @@ import myTester
 
 
 class Learner(object):
+    tester: myTester.Tester
+    strategy: myStrategy.Strategy
+    step: int
+    limit: int
 
     @abstractmethod
-    def learn(self: str):
+    def learn(self: str)->List:
         pass
 
     def __init__(self, tester: myTester.Tester, strategy: myStrategy.Strategy, step: int, limit: int):
@@ -19,10 +23,7 @@ class Learner(object):
 
 
 class CrossStrategyLearner(Learner):
-    tester: myTester.Tester
-    strategy: myStrategy.Strategy
-    step: int
-    limit: int
+
 
     def learn(self) -> List:
         estimations = []
@@ -32,7 +33,7 @@ class CrossStrategyLearner(Learner):
             j = i + self.step
             while j < self.limit:
                 self.strategy.ma_periods = [i, j]
-                est = self.tester.test(self.tester, self.strategy)
+                est = self.tester.test(self.strategy)
                 if est > best_est:
                     best_est = est
                     print([i, j], best_est)

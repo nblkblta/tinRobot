@@ -88,7 +88,7 @@ class CrossStrategy(Strategy):
 
 class CrossBuyTrailStop(Strategy):
     ma_periods: List
-    eps = 0.10
+    eps = 0.3
 
     def get_buy_points(self, df: pd.DataFrame) -> List:
         data = [df["c"].rolling(window=self.ma_periods[0]).mean(), df["c"].rolling(window=self.ma_periods[1]).mean(),
